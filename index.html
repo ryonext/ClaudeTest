@@ -348,7 +348,7 @@
 
 <script>
 // ========== Dummy Data Generator ==========
-const SEED = 42;
+const SEED = Math.floor(Math.random() * 0xffffffff);
 class SeededRandom {
   constructor(seed) { this.state = seed; }
   next() {
