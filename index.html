@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subscription Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0f1117;
+    --surface:#1a1d27;
+    --surface2:#242836;
+    --border:#2e3345;
+    --text:#e4e6f0;
+    --text-dim:#8b8fa3;
+    --accent:#6366f1;
+    --accent-light:#818cf8;
+    --green:#10b981;
+    --green-bg:rgba(16,185,129,.12);
+    --red:#ef4444;
+    --red-bg:rgba(239,68,68,.12);
+    --blue:#3b82f6;
+    --blue-bg:rgba(59,130,246,.12);
+    --purple:#a855f7;
+    --purple-bg:rgba(168,85,247,.12);
+    --orange:#f59e0b;
+    --orange-bg:rgba(245,158,11,.12);
+    --radius:12px;
+    --radius-sm:8px;
+    --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.2);
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    min-height:100vh;
+  }
+  .dashboard{max-width:1440px;margin:0 auto;padding:24px 32px 48px}
+
+  /* Header */
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px}
+  .header-left{display:flex;align-items:center;gap:14px}
+  .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:10px;display:flex;align-items:center;justify-content:center}
+  .logo svg{width:22px;height:22px;fill:#fff}
+  .header h1{font-size:22px;font-weight:700;letter-spacing:-.3px}
+  .header p{font-size:13px;color:var(--text-dim);margin-top:1px}
+  .header-right{display:flex;align-items:center;gap:8px}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .live-label{font-size:12px;color:var(--text-dim);font-weight:500}
+
+  /* Filters */
+  .filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:stretch}
+  .filter-group{display:flex;flex-direction:column;gap:5px}
+  .filter-group label{font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+  .filter-group select,
+  .filter-group input[type="date"]{
+    background:var(--surface);border:1px solid var(--border);color:var(--text);
+    padding:8px 12px;border-radius:var(--radius-sm);font-size:13px;
+    outline:none;transition:border-color .15s;cursor:pointer;min-width:140px;
+    height:38px;
+  }
+  .filter-group select:hover,
+  .filter-group input[type="date"]:hover{border-color:var(--accent)}
+  .filter-group select:focus,
+  .filter-group input[type="date"]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+  .date-range{display:flex;align-items:center;gap:6px}
+  .date-range span{color:var(--text-dim);font-size:12px}
+  .btn-group{display:flex;gap:0;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);height:38px;align-self:flex-end}
+  .btn-group button{
+    background:var(--surface);border:none;color:var(--text-dim);
+    padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;
+    transition:all .15s;border-right:1px solid var(--border);
+  }
+  .btn-group button:last-child{border-right:none}
+  .btn-group button:hover{color:var(--text);background:var(--surface2)}
+  .btn-group button.active{background:var(--accent);color:#fff}
+
+  /* KPI Cards */
+  .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
+  .kpi-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:20px 22px;transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden;
+  }
+  .kpi-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    border-radius:var(--radius) var(--radius) 0 0;
+  }
+  .kpi-card:nth-child(1)::before{background:var(--accent)}
+  .kpi-card:nth-child(2)::before{background:var(--green)}
+  .kpi-card:nth-child(3)::before{background:var(--red)}
+  .kpi-card:nth-child(4)::before{background:var(--blue)}
+  .kpi-card:nth-child(5)::before{background:var(--orange)}
+  .kpi-card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  .kpi-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+  .kpi-card:nth-child(1) .kpi-icon{background:rgba(99,102,241,.12)}
+  .kpi-card:nth-child(2) .kpi-icon{background:var(--green-bg)}
+  .kpi-card:nth-child(3) .kpi-icon{background:var(--red-bg)}
+  .kpi-card:nth-child(4) .kpi-icon{background:var(--blue-bg)}
+  .kpi-card:nth-child(5) .kpi-icon{background:var(--orange-bg)}
+  .kpi-icon svg{width:18px;height:18px}
+  .kpi-label{font-size:12px;color:var(--text-dim);font-weight:500;margin-bottom:6px}
+  .kpi-value{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+  .kpi-change{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;margin-top:8px;padding:2px 8px;border-radius:20px}
+  .kpi-change.up{color:var(--green);background:var(--green-bg)}
+  .kpi-change.down{color:var(--red);background:var(--red-bg)}
+  .kpi-change svg{width:12px;height:12px}
+  .kpi-sub{font-size:11px;color:var(--text-dim);margin-left:4px;font-weight:400}
+
+  /* Chart Grid */
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+  .chart-full{grid-column:1/-1}
+  .chart-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px 24px;
+  }
+  .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .chart-title{font-size:14px;font-weight:600}
+  .chart-subtitle{font-size:11px;color:var(--text-dim)}
+  .chart-container{position:relative;width:100%;height:280px}
+  .chart-container.tall{height:320px}
+
+  /* Table */
+  .table-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px 24px;margin-top:0;
+  }
+  .table-wrapper{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{
+    text-align:left;padding:10px 14px;font-weight:600;font-size:11px;
+    text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);
+    border-bottom:1px solid var(--border);
+  }
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--border)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface2)}
+  .badge{
+    display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  }
+  .badge-ios{background:rgba(59,130,246,.12);color:var(--blue)}
+  .badge-android{background:var(--green-bg);color:var(--green)}
+  .badge-monthly{background:var(--purple-bg);color:var(--purple)}
+  .badge-annual{background:var(--orange-bg);color:var(--orange)}
+  .sparkline-cell{width:100px}
+  .sparkline-cell canvas{display:block}
+
+  /* Responsive */
+  @media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:900px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+    .chart-grid{grid-template-columns:1fr}
+    .dashboard{padding:16px}
+  }
+  @media(max-width:600px){.kpi-grid{grid-template-columns:1fr}}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      </div>
+      <div>
+        <h1>Subscription Analytics</h1>
+        <p>Mobile App — リアルタイムサブスクリプション分析</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-dot"></div>
+      <span class="live-label">Live Data</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <div class="filter-group">
+      <label>期間</label>
+      <div class="date-range">
+        <input type="date" id="dateFrom">
+        <span>〜</span>
+        <input type="date" id="dateTo">
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>クイック選択</label>
+      <div class="btn-group" id="quickRange">
+        <button data-range="7">7日</button>
+        <button data-range="30" class="active">30日</button>
+        <button data-range="90">90日</button>
+        <button data-range="180">180日</button>
+        <button data-range="365">1年</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>プラットフォーム</label>
+      <select id="platformFilter">
+        <option value="all">すべて</option>
+        <option value="ios">iOS</option>
+        <option value="android">Android</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>プラン</label>
+      <select id="planFilter">
+        <option value="all">すべて</option>
+        <option value="monthly">月額プラン</option>
+        <option value="annual">年額プラン</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg fill="var(--accent)" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      </div>
+      <div class="kpi-label">有効サブスク数</div>
+      <div class="kpi-value" id="kpiActive">—</div>
+      <div class="kpi-change up" id="kpiActiveChange">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg fill="var(--green)" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+      <div class="kpi-label">新規サブスク</div>
+      <div class="kpi-value" id="kpiNew">—</div>
+      <div class="kpi-change up" id="kpiNewChange">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg fill="var(--red)" viewBox="0 0 24 24"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
+      </div>
+      <div class="kpi-label">解約数</div>
+      <div class="kpi-value" id="kpiChurn">—</div>
+      <div class="kpi-change down" id="kpiChurnChange">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg fill="var(--blue)" viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+      </div>
+      <div class="kpi-label">MRR</div>
+      <div class="kpi-value" id="kpiMRR">—</div>
+      <div class="kpi-change up" id="kpiMRRChange">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg fill="var(--orange)" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      </div>
+      <div class="kpi-label">トライアル転換率</div>
+      <div class="kpi-value" id="kpiTrial">—</div>
+      <div class="kpi-change up" id="kpiTrialChange">—</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="chart-grid">
+    <div class="chart-card chart-full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">有効サブスクリプション推移</div>
+          <div class="chart-subtitle">日次の有効サブスク数の推移</div>
+        </div>
+      </div>
+      <div class="chart-container tall"><canvas id="chartActive"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">新規 vs 解約</div>
+          <div class="chart-subtitle">日次の新規獲得と解約の比較</div>
+        </div>
+      </div>
+      <div class="chart-container"><canvas id="chartNewChurn"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">MRR 推移</div>
+          <div class="chart-subtitle">月次経常収益のトレンド</div>
+        </div>
+      </div>
+      <div class="chart-container"><canvas id="chartMRR"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">トライアル転換率</div>
+          <div class="chart-subtitle">日次のトライアルからの有料転換率</div>
+        </div>
+      </div>
+      <div class="chart-container"><canvas id="chartTrial"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">プラットフォーム別 内訳</div>
+          <div class="chart-subtitle">iOS / Android の有効サブスク比率</div>
+        </div>
+      </div>
+      <div class="chart-container"><canvas id="chartPlatform"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Detail Table -->
+  <div class="chart-grid" style="margin-top:0">
+    <div class="table-card chart-full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">日別サマリー</div>
+          <div class="chart-subtitle">直近のサブスクリプション活動ログ</div>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>プラットフォーム</th>
+              <th>プラン</th>
+              <th>有効数</th>
+              <th>新規</th>
+              <th>解約</th>
+              <th>MRR</th>
+              <th>転換率</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== Dummy Data Generator ==========
+const SEED = 42;
+class SeededRandom {
+  constructor(seed) { this.state = seed; }
+  next() {
+    this.state = (this.state * 1664525 + 1013904223) & 0xffffffff;
+    return (this.state >>> 0) / 0xffffffff;
+  }
+}
+
+function generateData() {
+  const rng = new SeededRandom(SEED);
+  const days = 400;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - days + 1);
+
+  const data = [];
+  let iosMonthlyActive = 3200;
+  let iosAnnualActive = 1800;
+  let androidMonthlyActive = 2600;
+  let androidAnnualActive = 1200;
+
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+
+    const dayOfWeek = date.getDay();
+    const monthProgress = i / days;
+    const growthTrend = 1 + monthProgress * 0.3;
+    const weekendDip = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.7 : 1.0;
+
+    // Occasional spikes (campaigns, featured, etc.)
+    const spikeChance = rng.next();
+    let spikeMult = 1.0;
+    if (spikeChance > 0.96) spikeMult = 2.5 + rng.next() * 2.0;
+    else if (spikeChance > 0.92) spikeMult = 1.6 + rng.next() * 0.8;
+
+    // Seasonal: slightly higher in winter months
+    const month = date.getMonth();
+    const seasonal = (month >= 10 || month <= 1) ? 1.15 : (month >= 5 && month <= 7) ? 0.9 : 1.0;
+
+    const segments = [
+      { platform: 'ios', plan: 'monthly', active: iosMonthlyActive, baseNew: 45, baseChurn: 30, trialBase: 0.38 },
+      { platform: 'ios', plan: 'annual', active: iosAnnualActive, baseNew: 18, baseChurn: 6, trialBase: 0.52 },
+      { platform: 'android', plan: 'monthly', active: androidMonthlyActive, baseNew: 38, baseChurn: 28, trialBase: 0.32 },
+      { platform: 'android', plan: 'annual', active: androidAnnualActive, baseNew: 14, baseChurn: 5, trialBase: 0.45 },
+    ];
+
+    for (const seg of segments) {
+      const newSubs = Math.max(0, Math.round(
+        seg.baseNew * growthTrend * weekendDip * spikeMult * seasonal * (0.7 + rng.next() * 0.6)
+      ));
+      const churnBase = seg.baseChurn * (0.6 + rng.next() * 0.8);
+      // Churn spike independently sometimes
+      const churnSpike = rng.next() > 0.97 ? 2.0 + rng.next() : 1.0;
+      const churned = Math.max(0, Math.round(churnBase * churnSpike * (seg.plan === 'annual' ? 0.4 : 1.0)));
+
+      seg.active = seg.active + newSubs - churned;
+
+      const trialConversion = Math.min(0.85, Math.max(0.10,
+        seg.trialBase + (rng.next() - 0.5) * 0.18 + monthProgress * 0.05
+      ));
+
+      const priceMonthly = seg.platform === 'ios' ? 980 : 780;
+      const priceAnnual = seg.platform === 'ios' ? 9800 : 7800;
+      const price = seg.plan === 'monthly' ? priceMonthly : priceAnnual;
+      const mrrContribution = seg.plan === 'monthly'
+        ? seg.active * price
+        : seg.active * Math.round(price / 12);
+
+      data.push({
+        date: new Date(date),
+        dateStr: date.toISOString().slice(0, 10),
+        platform: seg.platform,
+        plan: seg.plan,
+        active: seg.active,
+        newSubs,
+        churned,
+        trialConversion: Math.round(trialConversion * 1000) / 10,
+        mrr: mrrContribution,
+      });
+    }
+
+    iosMonthlyActive = segments[0].active;
+    iosAnnualActive = segments[1].active;
+    androidMonthlyActive = segments[2].active;
+    androidAnnualActive = segments[3].active;
+  }
+
+  return data;
+}
+
+const ALL_DATA = generateData();
+
+// ========== Filter State ==========
+let filterState = {
+  dateFrom: null,
+  dateTo: null,
+  platform: 'all',
+  plan: 'all',
+};
+
+function initDates() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const from = new Date(today);
+  from.setDate(from.getDate() - 29);
+  filterState.dateFrom = from;
+  filterState.dateTo = today;
+
+  document.getElementById('dateFrom').value = toDateStr(from);
+  document.getElementById('dateTo').value = toDateStr(today);
+}
+
+function toDateStr(d) {
+  return d.toISOString().slice(0,10);
+}
+
+// ========== Filter & Aggregate ==========
+function getFilteredData() {
+  return ALL_DATA.filter(d => {
+    if (d.date < filterState.dateFrom || d.date > filterState.dateTo) return false;
+    if (filterState.platform !== 'all' && d.platform !== filterState.platform) return false;
+    if (filterState.plan !== 'all' && d.plan !== filterState.plan) return false;
+    return true;
+  });
+}
+
+function aggregateByDate(filtered) {
+  const map = {};
+  for (const d of filtered) {
+    if (!map[d.dateStr]) {
+      map[d.dateStr] = { date: d.date, dateStr: d.dateStr, active: 0, newSubs: 0, churned: 0, mrr: 0, trialSum: 0, trialCount: 0 };
+    }
+    map[d.dateStr].active += d.active;
+    map[d.dateStr].newSubs += d.newSubs;
+    map[d.dateStr].churned += d.churned;
+    map[d.dateStr].mrr += d.mrr;
+    map[d.dateStr].trialSum += d.trialConversion;
+    map[d.dateStr].trialCount += 1;
+  }
+  return Object.values(map).sort((a,b) => a.date - b.date).map(d => ({
+    ...d,
+    trialConversion: d.trialCount > 0 ? Math.round(d.trialSum / d.trialCount * 10) / 10 : 0,
+  }));
+}
+
+function getPlatformBreakdown(filtered) {
+  let ios = 0, android = 0;
+  // Use latest date data
+  const dates = [...new Set(filtered.map(d => d.dateStr))].sort();
+  const latestDate = dates[dates.length - 1];
+  for (const d of filtered) {
+    if (d.dateStr === latestDate) {
+      if (d.platform === 'ios') ios += d.active;
+      else android += d.active;
+    }
+  }
+  return { ios, android };
+}
+
+// ========== KPI Update ==========
+function formatNum(n) {
+  if (n >= 1e8) return (n / 1e8).toFixed(1) + '億';
+  if (n >= 1e4) return (n / 1e4).toFixed(1) + '万';
+  return n.toLocaleString('ja-JP');
+}
+
+function formatYen(n) {
+  if (n >= 1e8) return '¥' + (n / 1e8).toFixed(2) + '億';
+  if (n >= 1e6) return '¥' + (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e4) return '¥' + (n / 1e4).toFixed(0) + '万';
+  return '¥' + n.toLocaleString('ja-JP');
+}
+
+function updateKPIs(daily) {
+  if (daily.length === 0) return;
+  const latest = daily[daily.length - 1];
+  const mid = Math.floor(daily.length / 2);
+  const firstHalf = daily.slice(0, mid);
+  const secondHalf = daily.slice(mid);
+
+  const avg = arr => arr.reduce((s, d) => s + d, 0) / arr.length;
+
+  // Active
+  document.getElementById('kpiActive').textContent = formatNum(latest.active);
+  const prevActive = daily.length > 1 ? daily[0].active : latest.active;
+  const activeChange = prevActive > 0 ? ((latest.active - prevActive) / prevActive * 100).toFixed(1) : 0;
+  setChange('kpiActiveChange', activeChange, '期間内');
+
+  // New
+  const totalNew = daily.reduce((s, d) => s + d.newSubs, 0);
+  document.getElementById('kpiNew').textContent = formatNum(totalNew);
+  const newFirst = firstHalf.reduce((s, d) => s + d.newSubs, 0);
+  const newSecond = secondHalf.reduce((s, d) => s + d.newSubs, 0);
+  const newChange = newFirst > 0 ? ((newSecond - newFirst) / newFirst * 100).toFixed(1) : 0;
+  setChange('kpiNewChange', newChange, '前半比');
+
+  // Churn
+  const totalChurn = daily.reduce((s, d) => s + d.churned, 0);
+  document.getElementById('kpiChurn').textContent = formatNum(totalChurn);
+  const churnFirst = firstHalf.reduce((s, d) => s + d.churned, 0);
+  const churnSecond = secondHalf.reduce((s, d) => s + d.churned, 0);
+  const churnChange = churnFirst > 0 ? ((churnSecond - churnFirst) / churnFirst * 100).toFixed(1) : 0;
+  setChange('kpiChurnChange', churnChange, '前半比', true);
+
+  // MRR
+  document.getElementById('kpiMRR').textContent = formatYen(latest.mrr);
+  const prevMRR = daily.length > 1 ? daily[0].mrr : latest.mrr;
+  const mrrChange = prevMRR > 0 ? ((latest.mrr - prevMRR) / prevMRR * 100).toFixed(1) : 0;
+  setChange('kpiMRRChange', mrrChange, '期間内');
+
+  // Trial
+  const avgTrial = avg(daily.map(d => d.trialConversion));
+  document.getElementById('kpiTrial').textContent = avgTrial.toFixed(1) + '%';
+  const trialFirst = avg(firstHalf.map(d => d.trialConversion));
+  const trialSecond = avg(secondHalf.map(d => d.trialConversion));
+  const trialChange = trialFirst > 0 ? ((trialSecond - trialFirst) / trialFirst * 100).toFixed(1) : 0;
+  setChange('kpiTrialChange', trialChange, '前半比');
+}
+
+function setChange(id, val, suffix, invert = false) {
+  const el = document.getElementById(id);
+  const num = parseFloat(val);
+  const isUp = invert ? num < 0 : num > 0;
+  el.className = 'kpi-change ' + (isUp ? 'up' : 'down');
+  const arrow = num >= 0
+    ? '<svg viewBox="0 0 12 12"><path d="M6 2l4 5H2z" fill="currentColor"/></svg>'
+    : '<svg viewBox="0 0 12 12"><path d="M6 10l4-5H2z" fill="currentColor"/></svg>';
+  el.innerHTML = arrow + (num >= 0 ? '+' : '') + val + '%<span class="kpi-sub">' + suffix + '</span>';
+}
+
+// ========== Charts ==========
+const chartInstances = {};
+const CHART_COLORS = {
+  accent: '#6366f1',
+  accentLight: 'rgba(99,102,241,.15)',
+  green: '#10b981',
+  greenLight: 'rgba(16,185,129,.15)',
+  red: '#ef4444',
+  redLight: 'rgba(239,68,68,.15)',
+  blue: '#3b82f6',
+  blueLight: 'rgba(59,130,246,.15)',
+  orange: '#f59e0b',
+  orangeLight: 'rgba(245,158,11,.15)',
+  purple: '#a855f7',
+  purpleLight: 'rgba(168,85,247,.15)',
+  grid: 'rgba(255,255,255,.06)',
+  tick: '#8b8fa3',
+};
+
+Chart.defaults.color = CHART_COLORS.tick;
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+
+function commonScales(yTitle) {
+  return {
+    x: {
+      type: 'time',
+      time: { unit: 'day', tooltipFormat: 'yyyy/MM/dd', displayFormats: { day: 'M/d', month: 'yyyy/M' }},
+      grid: { color: CHART_COLORS.grid },
+      ticks: { maxTicksLimit: 10 },
+    },
+    y: {
+      title: { display: !!yTitle, text: yTitle, color: CHART_COLORS.tick },
+      grid: { color: CHART_COLORS.grid },
+      ticks: { callback: v => v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v >= 1e4 ? (v/1e4).toFixed(0)+'万' : v.toLocaleString() },
+    },
+  };
+}
+
+function makeGradient(ctx, color, height) {
+  const g = ctx.createLinearGradient(0, 0, 0, height || 280);
+  const rgb = hexToRgb(color);
+  g.addColorStop(0, `rgba(${rgb},0.25)`);
+  g.addColorStop(1, `rgba(${rgb},0.01)`);
+  return g;
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+function updateCharts(daily, platformData) {
+  const labels = daily.map(d => d.date);
+
+  // Active subs
+  if (chartInstances.active) chartInstances.active.destroy();
+  const ctxA = document.getElementById('chartActive').getContext('2d');
+  chartInstances.active = new Chart(ctxA, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '有効サブスク数',
+        data: daily.map(d => d.active),
+        borderColor: CHART_COLORS.accent,
+        backgroundColor: makeGradient(ctxA, CHART_COLORS.accent, 320),
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHitRadius: 10,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString() }}},
+      scales: commonScales('有効数'),
+    }
+  });
+
+  // New vs Churn
+  if (chartInstances.newChurn) chartInstances.newChurn.destroy();
+  const ctxNC = document.getElementById('chartNewChurn').getContext('2d');
+  chartInstances.newChurn = new Chart(ctxNC, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '新規',
+          data: daily.map(d => d.newSubs),
+          backgroundColor: CHART_COLORS.green,
+          borderRadius: 3,
+          barPercentage: 0.7,
+        },
+        {
+          label: '解約',
+          data: daily.map(d => -d.churned),
+          backgroundColor: CHART_COLORS.red,
+          borderRadius: 3,
+          barPercentage: 0.7,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16 }},
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + Math.abs(ctx.parsed.y).toLocaleString() }},
+      },
+      scales: {
+        ...commonScales(null),
+        y: {
+          grid: { color: CHART_COLORS.grid },
+          ticks: { callback: v => Math.abs(v).toLocaleString() },
+        }
+      },
+    }
+  });
+
+  // MRR
+  if (chartInstances.mrr) chartInstances.mrr.destroy();
+  const ctxM = document.getElementById('chartMRR').getContext('2d');
+  chartInstances.mrr = new Chart(ctxM, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'MRR',
+        data: daily.map(d => d.mrr),
+        borderColor: CHART_COLORS.blue,
+        backgroundColor: makeGradient(ctxM, CHART_COLORS.blue),
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHitRadius: 10,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '¥' + ctx.parsed.y.toLocaleString() }}},
+      scales: {
+        ...commonScales('MRR (¥)'),
+        y: {
+          grid: { color: CHART_COLORS.grid },
+          ticks: { callback: v => '¥' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e4 ? (v/1e4).toFixed(0)+'万' : v.toLocaleString()) },
+        }
+      },
+    }
+  });
+
+  // Trial Conversion
+  if (chartInstances.trial) chartInstances.trial.destroy();
+  const ctxT = document.getElementById('chartTrial').getContext('2d');
+  chartInstances.trial = new Chart(ctxT, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '転換率',
+        data: daily.map(d => d.trialConversion),
+        borderColor: CHART_COLORS.orange,
+        backgroundColor: makeGradient(ctxT, CHART_COLORS.orange),
+        fill: true,
+        tension: 0.35,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHitRadius: 10,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(1) + '%' }}},
+      scales: {
+        ...commonScales('転換率 (%)'),
+        y: {
+          grid: { color: CHART_COLORS.grid },
+          ticks: { callback: v => v + '%' },
+          suggestedMin: 20,
+          suggestedMax: 60,
+        }
+      },
+    }
+  });
+
+  // Platform Doughnut
+  if (chartInstances.platform) chartInstances.platform.destroy();
+  const ctxP = document.getElementById('chartPlatform').getContext('2d');
+  chartInstances.platform = new Chart(ctxP, {
+    type: 'doughnut',
+    data: {
+      labels: ['iOS', 'Android'],
+      datasets: [{
+        data: [platformData.ios, platformData.android],
+        backgroundColor: [CHART_COLORS.blue, CHART_COLORS.green],
+        borderColor: '#1a1d27',
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, font: { size: 13 }}},
+        tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed.toLocaleString() + ' (' + (ctx.parsed / (platformData.ios + platformData.android) * 100).toFixed(1) + '%)' }},
+      },
+    }
+  });
+}
+
+// ========== Table ==========
+function updateTable(filtered) {
+  const tbody = document.getElementById('tableBody');
+  // Show last 20 rows, grouped by date desc
+  const sorted = [...filtered].sort((a, b) => b.date - a.date);
+  const rows = sorted.slice(0, 20);
+
+  tbody.innerHTML = rows.map(d => `
+    <tr>
+      <td>${d.dateStr}</td>
+      <td><span class="badge badge-${d.platform}">${d.platform === 'ios' ? 'iOS' : 'Android'}</span></td>
+      <td><span class="badge badge-${d.plan}">${d.plan === 'monthly' ? '月額' : '年額'}</span></td>
+      <td>${d.active.toLocaleString()}</td>
+      <td style="color:var(--green)">+${d.newSubs.toLocaleString()}</td>
+      <td style="color:var(--red)">-${d.churned.toLocaleString()}</td>
+      <td>¥${d.mrr.toLocaleString()}</td>
+      <td>${d.trialConversion}%</td>
+    </tr>
+  `).join('');
+}
+
+// ========== Master Refresh ==========
+function refresh() {
+  const filtered = getFilteredData();
+  const daily = aggregateByDate(filtered);
+  const platformData = getPlatformBreakdown(filtered);
+
+  updateKPIs(daily);
+  updateCharts(daily, platformData);
+  updateTable(filtered);
+}
+
+// ========== Event Binding ==========
+document.getElementById('dateFrom').addEventListener('change', e => {
+  filterState.dateFrom = new Date(e.target.value + 'T00:00:00');
+  // Deactivate quick range buttons
+  document.querySelectorAll('#quickRange button').forEach(b => b.classList.remove('active'));
+  refresh();
+});
+
+document.getElementById('dateTo').addEventListener('change', e => {
+  filterState.dateTo = new Date(e.target.value + 'T00:00:00');
+  document.querySelectorAll('#quickRange button').forEach(b => b.classList.remove('active'));
+  refresh();
+});
+
+document.querySelectorAll('#quickRange button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#quickRange button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const days = parseInt(btn.dataset.range);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const from = new Date(today);
+    from.setDate(from.getDate() - days + 1);
+    filterState.dateFrom = from;
+    filterState.dateTo = today;
+    document.getElementById('dateFrom').value = toDateStr(from);
+    document.getElementById('dateTo').value = toDateStr(today);
+    refresh();
+  });
+});
+
+document.getElementById('platformFilter').addEventListener('change', e => {
+  filterState.platform = e.target.value;
+  refresh();
+});
+
+document.getElementById('planFilter').addEventListener('change', e => {
+  filterState.plan = e.target.value;
+  refresh();
+});
+
+// ========== Init ==========
+initDates();
+refresh();
+</script>
+</body>
+</html>
